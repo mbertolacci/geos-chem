@@ -306,6 +306,16 @@ CONTAINS
        RETURN
     ENDIF
 
+    ! Observation Operator diagnostic settings
+    CALL Config_ObsOperator( Config, Input_Opt, RC )
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = 'Error in "Config_ObsOperator"!'
+       CALL GC_Error( errMsg, RC, thisLoc )
+       CALL QFYAML_CleanUp( Config         )
+       CALL QFYAML_CleanUp( ConfigAnchored )
+       RETURN
+    ENDIF
+
 #if !(defined( EXTERNAL_GRID ) || defined( EXTERNAL_FORCING ))
 
     ! Planeflight diagnostic settings
@@ -3850,6 +3860,151 @@ CONTAINS
 110 FORMAT( A, A   )
 
   END SUBROUTINE Config_ObsPack
+!EOC
+!------------------------------------------------------------------------------
+!                  GEOS-Chem Global Chemical Transport Model                  !
+!------------------------------------------------------------------------------
+!BOP
+!
+! !IROUTINE: config_obsoperator
+!
+! !DESCRIPTION: Copies Observation Operator diagnostic information from the Config
+!  object to Input_Opt, and does necessary checks.
+!\\
+!\\
+! !INTERFACE:
+!
+SUBROUTINE Config_ObsOperator( Config, Input_Opt, RC )
+!
+! !USES:
+!
+    USE ErrCode_Mod
+    USE Input_Opt_Mod, ONLY : OptInput
+!
+! !INPUT/OUTPUT PARAMETERS:
+!
+    TYPE(QFYAML_t), INTENT(INOUT) :: Config      ! YAML Config object
+    TYPE(OptInput), INTENT(INOUT) :: Input_Opt   ! Input Options object
+!
+! !OUTPUT PARAMETERS:
+!
+    INTEGER,        INTENT(OUT)   :: RC          ! Success or failure
+!EOP
+!------------------------------------------------------------------------------
+!BOC
+!
+! !LOCAL VARIABLES:
+!
+    ! Scalars
+    INTEGER                      :: N
+    LOGICAL                      :: v_bool
+
+    ! Strings
+    CHARACTER(LEN=255)           :: thisLoc
+    CHARACTER(LEN=255)           :: errMsg
+    CHARACTER(LEN=QFYAML_NamLen) :: key
+    CHARACTER(LEN=QFYAML_StrLen) :: v_str
+
+    ! String arrays
+    CHARACTER(LEN=QFYAML_StrLen) :: a_str(QFYAML_MaxArr)
+
+    !========================================================================
+    ! Config_ObsPack begins here!
+    !========================================================================
+
+    ! Initialize
+    RC      = GC_SUCCESS
+    errMsg  = 'Error reading the "geoschem_config.yml" file!'
+    thisLoc = ' -> at Config_ObsOperator (in module GeosCore/input_mod.F90)'
+
+    !------------------------------------------------------------------------
+    ! Turn on ObsOperator diagnostic?
+    !------------------------------------------------------------------------
+    key    = "extra_diagnostics%obsoperator%activate"
+    v_bool = MISSING_BOOL
+    CALL QFYAML_Add_Get( Config, TRIM( key ), v_bool, "", RC )
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = 'Error parsing ' // TRIM( key ) // '!'
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+    Input_Opt%Do_ObsOperator = v_bool
+
+    !------------------------------------------------------------------------
+    ! ObsOperator verbose output?
+    !------------------------------------------------------------------------
+    key    = "extra_diagnostics%obsoperator%verbose"
+    v_bool = .FALSE.
+    CALL QFYAML_Add_Get( Config, TRIM( key ), v_bool, "", RC )
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = 'Error parsing ' // TRIM( key ) // '!'
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+    Input_Opt%ObsOperator_Verbose = v_bool
+
+    !------------------------------------------------------------------------
+    ! Input file name
+    !------------------------------------------------------------------------
+    key   = "extra_diagnostics%obsoperator%input_file"
+    v_str = MISSING_STR
+    CALL QFYAML_Add_Get( Config, TRIM( key ), v_str, "", RC )
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = 'Error parsing ' // TRIM( key ) // '!'
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+    Input_Opt%ObsOperator_InputFile = TRIM( v_str )
+
+    !------------------------------------------------------------------------
+    ! Output file name
+    !------------------------------------------------------------------------
+    key   = "extra_diagnostics%obsoperator%output_file"
+    v_str = MISSING_STR
+    CALL QFYAML_Add_Get( Config, TRIM( key ), v_str, "", RC )
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = 'Error parsing ' // TRIM( key ) // '!'
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+    Input_Opt%ObsOperator_OutputFile = TRIM( v_str )
+
+    IF ( Input_Opt%Do_ObsOperator ) THEN
+      IF ( TRIM( Input_Opt%ObsOperator_InputFile ) == MISSING_STR ) THEN
+        errMsg = 'Error: ObsOperator input file is not specified!'
+        CALL GC_Error( errMsg, RC, thisLoc )
+        RETURN
+      ENDIF
+      IF ( TRIM( Input_Opt%ObsOperator_OutputFile ) == MISSING_STR ) THEN
+        errMsg = 'Error: ObsOperator output file is not specified!'
+        CALL GC_Error( errMsg, RC, thisLoc )
+        RETURN
+      ENDIF
+    ENDIF
+
+    !========================================================================
+    ! Print to screen
+    !========================================================================
+    IF( Input_Opt%amIRoot ) THEN
+       WRITE( 6, 90  ) 'OBSOPERATOR SETTINGS'
+       WRITE( 6, 95  ) '-----------------------------'
+       WRITE( 6, 100 ) 'Turn on ObsOperator diagnostic? : ',                     &
+                        Input_Opt%Do_ObsOperator
+       WRITE( 6, 100 ) 'Verbose output?    : ',                     &
+                        Input_Opt%ObsOperator_Verbose
+       WRITE( 6, 110 ) 'ObsOperator input file          : ',                     &
+                        TRIM( Input_Opt%ObsOperator_InputFile  )
+       WRITE( 6, 110 ) 'ObsOperator output file         : ',                     &
+                        TRIM( Input_Opt%ObsOperator_OutputFile )
+    ENDIF
+
+    ! FORMAT statements
+90  FORMAT( /, A   )
+95  FORMAT( A      )
+100 FORMAT( A, L5  )
+110 FORMAT( A, A   )
+
+  END SUBROUTINE Config_ObsOperator
 !EOC
 !------------------------------------------------------------------------------
 !                  GEOS-Chem Global Chemical Transport Model                  !

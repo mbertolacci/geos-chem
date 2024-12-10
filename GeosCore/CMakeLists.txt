@@ -102,7 +102,8 @@ endif()
 
 # Define dependencies for libGeosCore.a
 target_link_libraries(GeosCore PUBLIC
-  ObsPack 
+  ObsPack
+  ObsOperator
   History
   KPP
   HETP_core

@@ -291,6 +291,14 @@ MODULE Input_Opt_Mod
      CHARACTER(LEN=255), POINTER :: ObsPack_SpcName(:)
 
      !----------------------------------------
+     ! OBSERVATION OPERATOR MENU fields
+     !----------------------------------------
+     LOGICAL                     :: Do_ObsOperator
+     LOGICAL                     :: ObsOperator_Verbose
+     CHARACTER(LEN=255)          :: ObsOperator_InputFile
+     CHARACTER(LEN=255)          :: ObsOperator_OutputFile
+
+     !----------------------------------------
      ! ND51 MENU fields
      !----------------------------------------
      LOGICAL                     :: DO_ND51
