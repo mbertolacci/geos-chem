@@ -20,7 +20,6 @@ MODULE ObsOperator_Entry_Mod
   
   TYPE, PUBLIC :: ObsOperatorEntry
     LOGICAL :: IsActive = .FALSE.
-    LOGICAL :: IsFilled = .FALSE.
 
     CHARACTER(LEN=:), ALLOCATABLE :: Id
 

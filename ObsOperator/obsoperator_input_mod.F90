@@ -31,11 +31,13 @@ MODULE ObsOperator_Input_Mod
 
     CHARACTER(LEN=255) :: errorMessage, thisLocation
 
+    WRITE(*, '(A)') 'First pass starting'
     CALL Read_ObsOperator_Input_First_Pass(Path, ObsOperator_Entries, RC)
     IF (RC /= GC_SUCCESS) THEN
       RETURN
     END IF
 
+    WRITE(*, '(A)') 'Second pass starting'
     CALL Read_ObsOperator_Input_Second_Pass(Path, Input_Opt, State_Chm, State_Grid, ObsOperator_Entries, RC)
     IF (RC /= GC_SUCCESS) THEN
       RETURN
@@ -127,15 +129,26 @@ MODULE ObsOperator_Input_Mod
     TYPE(QFYAML_t) :: yml
     TYPE(QFYAML_t) :: yml_anchored
 
+    INTEGER :: startClock, endClock, clockRate
+    REAL :: elapsedTime
+
     thisLocation = " -> at Read_ObsOperator_Input_Second_Pass (in module ObsOperator/obsoperator_input_mod.F90)"
 
+    CALL SYSTEM_CLOCK(startClock, clockRate)
+    WRITE(*, '(A)') 'QFYAML_Init starting'
     CALL QFYAML_Init( Path, yml, yml_anchored, RC )
     IF ( RC /= GC_SUCCESS ) THEN
       errorMessage = "Error reading from " // Path
       CALL GC_Error( errorMessage, RC, thisLocation )
       RETURN
     ENDIF
+    WRITE(*, '(A)') 'QFYAML_Init finished'
+    CALL SYSTEM_CLOCK(endClock)
+    elapsedTime = REAL(endClock - startClock) / REAL(clockRate)
+    WRITE(*, '(A, F6.3, A)') 'QFYAML_Init finished in ', elapsedTime, ' seconds'
 
+    CALL SYSTEM_CLOCK(startClock, clockRate)
+    WRITE(*, '(A)') 'Reading operators'
     DO I = 1, SIZE(ObsOperator_Entries)
       IF (.NOT. ObsOperator_Entries(I)%IsActive .OR. ObsOperator_Entries(I)%IsFilled) THEN
         CYCLE
@@ -171,9 +184,18 @@ MODULE ObsOperator_Input_Mod
 
       ObsOperator_Entries(I)%IsFilled = .TRUE.
     END DO
+    WRITE(*, '(A)') 'Reading operators finished'
+    CALL SYSTEM_CLOCK(endClock)
+    elapsedTime = REAL(endClock - startClock) / REAL(clockRate)
+    WRITE(*, '(A, F6.3, A)') 'Reading operators finished in ', elapsedTime, ' seconds'
 
+    WRITE(*, '(A)') 'QFYAML_CleanUp starting'
+    CALL SYSTEM_CLOCK(startClock, clockRate)
     CALL QFYAML_CleanUp(yml_anchored)
     CALL QFYAML_CleanUp(yml)
+    CALL SYSTEM_CLOCK(endClock)
+    elapsedTime = REAL(endClock - startClock) / REAL(clockRate)
+    WRITE(*, '(A, F6.3, A)') 'QFYAML_CleanUp finished in ', elapsedTime, ' seconds'
   END SUBROUTINE Read_ObsOperator_Input_Second_Pass
 
   SUBROUTINE Read_Species(Entry, yml, State_Chm, RC)

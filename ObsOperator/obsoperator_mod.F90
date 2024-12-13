@@ -20,13 +20,13 @@ CONTAINS
 
   SUBROUTINE ObsOperator_Init(Input_Opt, State_Chm, State_Grid, RC)
     USE ErrCode_Mod
-    USE File_Mod, ONLY : IOERROR
+    USE File_Mod, ONLY : IOERROR, FILE_EXISTS
     USE inquireMod, ONLY : findFreeLUN
     USE Input_Opt_Mod, ONLY : OptInput
     USE State_Chm_Mod, ONLY : ChmState
     USE State_Grid_Mod, ONLY : GrdState
     USE Time_Mod, ONLY : Expand_Date, Get_Nymd, Get_Nhms
-    USE ObsOperator_Input_Mod, ONLY : Read_ObsOperator_Input
+    USE ObsOperator_Input_Alt_Mod, ONLY : Read_ObsOperator_Input
 
     TYPE(OptInput), INTENT(IN) :: Input_Opt
     TYPE(ChmState), INTENT(IN) :: State_Chm
@@ -53,7 +53,29 @@ CONTAINS
     currentOutputPath = Input_Opt%ObsOperator_OutputFile
     CALL Expand_Date(currentOutputPath, Get_Nymd(), Get_Nhms())
 
-    IF ( currentOutputPath /= PreviousOutputPath ) THEN
+    IF ( currentInputPath == PreviousInputPath ) THEN
+      ! The input file has not changed, so we can skip reading it
+      RETURN
+    ENDIF
+    PreviousInputPath = currentInputPath
+
+    IF ( FILE_EXISTS(currentInputPath) ) THEN
+      CALL Read_ObsOperator_Input(currentInputPath, Input_Opt, State_Chm, State_Grid, OperatorEntries, RC)
+      IF (RC /= GC_SUCCESS) THEN
+        RETURN
+      END IF
+    END IF
+
+    ! This should not happen, but if it does it is probably because the initial read
+    ! of the YAML file identified entries that aren't real
+    nActiveEntries = 0
+    DO I = 1, MAX_OPERATOR_ENTRIES
+      IF (OperatorEntries(I)%IsActive) THEN
+        nActiveEntries = nActiveEntries + 1
+      END IF
+    END DO
+
+    IF ( currentOutputPath /= PreviousOutputPath .AND. nActiveEntries > 0 ) THEN
       INQUIRE( CurrentOutputFile, opened=isOpen )
       IF ( isOpen ) CLOSE( CurrentOutputFile )
 
@@ -70,31 +92,6 @@ CONTAINS
       END IF
     END IF
     PreviousOutputPath = currentOutputPath
-
-    IF ( currentInputPath == PreviousInputPath ) THEN
-      ! The input file has not changed, so we can skip reading it
-      RETURN
-    ENDIF
-    PreviousInputPath = currentInputPath
-
-    CALL Read_ObsOperator_Input(currentInputPath, Input_Opt, State_Chm, State_Grid, OperatorEntries, RC)
-    IF (RC /= GC_SUCCESS) THEN
-      RETURN
-    END IF
-
-    ! This should not happen, but if it does it is probably because the initial read
-    ! of the YAML file identified entries that aren't real
-    nActiveEntries = 0
-    DO I = 1, MAX_OPERATOR_ENTRIES
-      IF (OperatorEntries(I)%IsActive) THEN
-        nActiveEntries = nActiveEntries + 1
-        IF ( .NOT. OperatorEntries(I)%IsFilled ) THEN
-          errorMessage = 'Error: operator entry ' // TRIM(OperatorEntries(I)%Id) // ' is not filled'
-          CALL GC_Error( errorMessage, RC, thisLocation )
-          RETURN
-        END IF
-      END IF
-    END DO
 
     IF ( isPrintLog ) THEN
 
