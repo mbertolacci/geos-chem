@@ -221,38 +221,93 @@ MODULE ObsOperator_Input_Alt_Mod
     TYPE(ChmState), INTENT(IN) :: State_Chm
     INTEGER, INTENT(OUT) :: RC
 
-    INTEGER :: nSpecies, i, j
-    CHARACTER(LEN=255), ALLOCATABLE :: speciesNames(:)
+    INTEGER :: nInputSpecies, nTempSpecies, nFinalSpecies, tempIndex, i, j
+    CHARACTER(LEN=255), ALLOCATABLE :: inputSpeciesNames(:)
+    INTEGER, ALLOCATABLE :: tempSpeciesIndex(:)
 
-    CALL Get_YAML_Scalars_Size(Node, nSpecies, RC)
+    CALL Get_YAML_Scalars_Size(Node, nInputSpecies, RC)
     IF (RC /= 0) THEN
       RETURN
     END IF
 
-    ALLOCATE(speciesNames(nSpecies))
-    CALL Get_YAML_Char_Scalars(Node, speciesNames, RC)
+    ALLOCATE(inputSpeciesNames(nInputSpecies))
+    CALL Get_YAML_Char_Scalars(Node, inputSpeciesNames, RC)
     IF (RC /= 0) THEN
       RETURN
     END IF
 
-    ALLOCATE(Entry%SpeciesIndex(nSpecies))
-    ALLOCATE(Entry%SpeciesValue(nSpecies))
-    DO i = 1, nSpecies
-      Entry%SpeciesIndex(i) = 0
-      DO j = 1, State_Chm%nSpecies
-        IF (TRIM(State_Chm%SpcData(j)%Info%Name) == TRIM(speciesNames(i))) THEN
-          Entry%SpeciesIndex(i) = j
-          EXIT
-        END IF
-      END DO
-      IF (Entry%SpeciesIndex(i) == 0) THEN
-        RC = 1
-        RETURN
+    nTempSpecies = 0
+    DO i = 1, nInputSpecies
+      IF (TRIM(inputSpeciesNames(i)) == "?ALL?") THEN
+        nTempSpecies = nTempSpecies + State_Chm%nSpecies
+      ELSE IF (TRIM(inputSpeciesNames(i)) == "?ADV?") THEN
+        nTempSpecies = nTempSpecies + State_Chm%nAdvect
+      ELSE
+        nTempSpecies = nTempSpecies + 1
       END IF
-      Entry%SpeciesValue(i) = 0.0_f8
     END DO
 
-    DEALLOCATE(speciesNames)
+    ALLOCATE(tempSpeciesIndex(nTempSpecies))
+    tempIndex = 1
+    DO i = 1, nInputSpecies
+      IF (TRIM(inputSpeciesNames(i)) == "?ALL?") THEN
+        DO j = 1, State_Chm%nSpecies
+          tempSpeciesIndex(tempIndex) = j
+          tempIndex = tempIndex + 1
+        END DO
+      ELSE IF (TRIM(inputSpeciesNames(i)) == "?ADV?") THEN
+        DO j = 1, State_Chm%nAdvect
+          ! NOTE: The advected species all come before non-advected species
+          tempSpeciesIndex(tempIndex) = j
+          tempIndex = tempIndex + 1
+        END DO
+      ELSE
+        ! Search for the species in the State_Chm%SpcData array
+        tempSpeciesIndex(tempIndex) = 0
+        DO j = 1, State_Chm%nSpecies
+          IF (TRIM(State_Chm%SpcData(j)%Info%Name) == TRIM(inputSpeciesNames(i))) THEN
+            tempSpeciesIndex(tempIndex) = j
+            EXIT
+          END IF
+        END DO
+        IF (tempSpeciesIndex(tempIndex) == 0) THEN
+          RC = 1
+          RETURN
+        END IF
+        tempIndex = tempIndex + 1
+      END IF
+    END DO
+
+    ! Find duplicated species, which can happen either because the user did it
+    ! or because they used ?ALL? or ?ADV? alongside others. This method is
+    ! inefficient but is fast enough for small arrays
+    nFinalSpecies = 0
+    DO i = 1, nTempSpecies
+      IF (tempSpeciesIndex(i) > 0) THEN
+        nFinalSpecies = nFinalSpecies + 1
+        DO j = i + 1, nTempSpecies
+          ! Zero out duplicate species
+          IF (tempSpeciesIndex(j) == tempSpeciesIndex(i)) THEN
+            tempSpeciesIndex(j) = 0
+          END IF
+        END DO
+      END IF
+    END DO
+
+    ALLOCATE(Entry%SpeciesIndex(nFinalSpecies))
+    ALLOCATE(Entry%SpeciesValue(nFinalSpecies))
+    tempIndex = 1
+    DO i = 1, nTempSpecies
+      IF (tempSpeciesIndex(i) == 0) THEN
+        CYCLE
+      END IF
+      Entry%SpeciesIndex(tempIndex) = tempSpeciesIndex(i)
+      Entry%SpeciesValue(tempIndex) = 0.0_f8
+      tempIndex = tempIndex + 1
+    END DO
+
+    DEALLOCATE(inputSpeciesNames)
+    DEALLOCATE(tempSpeciesIndex)
   END SUBROUTINE Fill_Species
 
   SUBROUTINE Fill_Time_Operator(Entry, Node, Input_Opt, RC)
