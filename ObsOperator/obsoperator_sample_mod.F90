@@ -28,11 +28,11 @@ MODULE ObsOperator_Sample_Mod
     INTEGER :: K
     INTEGER :: nLevelIndices
     INTEGER :: matchingTimePoint
-    REAL(f8) :: currentSpeciesValue
+    REAL(f8) :: currentFieldValue
     REAL(f8) :: currentCellValue
     REAL(f8) :: currentVerticalWeight
     REAL(f8) :: verticalWeightDenominator
-    INTEGER :: currentSpeciesIndex
+    INTEGER :: currentFieldSpeciesIndex
     INTEGER :: currentHorizI
     INTEGER :: currentHorizJ
     INTEGER :: currentLevelIndex
@@ -55,13 +55,13 @@ MODULE ObsOperator_Sample_Mod
       WRITE(*, '(A, A)') '- Sampling id = ', Entry%Id
     END IF
 
-    ! Loop through each species
-    DO I = 1, SIZE(Entry%SpeciesIndex)
-      currentSpeciesValue = 0.0_f8
-      currentSpeciesIndex = Entry%SpeciesIndex(I)
+    ! Loop through each field
+    DO I = 1, SIZE(Entry%FieldSpeciesIndex)
+      currentFieldValue = 0.0_f8
+      currentFieldSpeciesIndex = Entry%FieldSpeciesIndex(I)
 
       IF (isPrintLog) THEN
-        WRITE(*, '(A, A)') '  + Species = ', State_Chm%SpcData(currentSpeciesIndex)%Info%Name
+        WRITE(*, '(A, A)') '  + Field = ', Entry%FieldName(I)
       END IF
 
       DO J = 1, SIZE(Entry%HorizontalIndices, 1)
@@ -114,7 +114,7 @@ MODULE ObsOperator_Sample_Mod
             END IF
 
             currentCellValue = currentCellValue + currentVerticalWeight * State_Chm%Species( &
-              currentSpeciesIndex &
+              currentFieldSpeciesIndex &
             )%Conc( &
               currentHorizI, &
               currentHorizJ, &
@@ -140,7 +140,7 @@ MODULE ObsOperator_Sample_Mod
 
             currentVerticalWeight = Entry%VerticalExactWeight(K)
             currentCellValue = currentCellValue + currentVerticalWeight * State_Chm%Species( &
-              currentSpeciesIndex &
+              currentFieldSpeciesIndex &
             )%Conc( &
               currentHorizI, &
               currentHorizJ, &
@@ -149,22 +149,20 @@ MODULE ObsOperator_Sample_Mod
           END DO
         END IF
 
-        currentSpeciesValue = ( &
-          currentSpeciesValue &
+        currentFieldValue = ( &
+          currentFieldValue &
           + Entry%HorizontalWeights(J) * currentCellValue &
         )
       END DO
 
-      currentSpeciesValue = currentSpeciesValue * (AIRMW / State_Chm%SpcData(currentSpeciesIndex)%Info%MW_g)
+      currentFieldValue = currentFieldValue * (AIRMW / State_Chm%SpcData(currentFieldSpeciesIndex)%Info%MW_g)
 
-      Entry%SpeciesValue(I) = ( &
-        Entry%SpeciesValue(I) &
-        + Entry%TimeWeights(matchingTimePoint) * currentSpeciesValue &
+      Entry%FieldValue(I) = ( &
+        Entry%FieldValue(I) &
+        + Entry%TimeWeights(matchingTimePoint) * currentFieldValue &
       )
     END DO
   END SUBROUTINE Sample_ObsOperatorEntry
-
-
 
   SUBROUTINE Vertical_Index_From_Altitude(Altitude, I, J, State_Grid, State_Met, Index)
     USE State_Grid_Mod, ONLY : GrdState

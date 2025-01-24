@@ -157,15 +157,15 @@ MODULE ObsOperator_Input_Alt_Mod
     ALLOCATE(CHARACTER(LEN=LEN_TRIM(id)) :: Entry%Id)
     Entry%Id = id(1:LEN_TRIM(id))
 
-    CALL Get_YAML_Key(Node, 'species', subNode, RC)
+    CALL Get_YAML_Key(Node, 'fields', subNode, RC)
     IF (RC /= 0) THEN
-      CALL GC_Error('YAML file missing species key', RC, thisLocation)
+      CALL GC_Error('YAML file missing fields key', RC, thisLocation)
       RETURN
     END IF
 
-    CALL Fill_Species(Entry, subNode, State_Chm, RC)
+    CALL Fill_Fields(Entry, subNode, State_Chm, RC)
     IF ( RC /= GC_SUCCESS ) THEN
-      errorMessage = 'Error reading species for operator entry ' // TRIM(Entry%Id)
+      errorMessage = 'Error reading fields for operator entry ' // TRIM(Entry%Id)
       CALL GC_Error( errorMessage, RC, thisLocation )
       RETURN
     ENDIF
@@ -212,65 +212,71 @@ MODULE ObsOperator_Input_Alt_Mod
     Entry%IsActive = .TRUE.
   END SUBROUTINE Fill_Entry
 
-  SUBROUTINE Fill_Species(Entry, Node, State_Chm, RC)
+  SUBROUTINE Fill_Fields(Entry, Node, State_Chm, RC)
     USE ErrCode_Mod
     USE State_Chm_Mod, ONLY : ChmState
+    USE Error_Mod, ONLY : Error_Stop
 
     TYPE(ObsOperatorEntry), INTENT(INOUT) :: Entry
     TYPE(YamlNode), INTENT(IN) :: Node
     TYPE(ChmState), INTENT(IN) :: State_Chm
     INTEGER, INTENT(OUT) :: RC
 
-    INTEGER :: nInputSpecies, nTempSpecies, nFinalSpecies, tempIndex, i, j
-    CHARACTER(LEN=255), ALLOCATABLE :: inputSpeciesNames(:)
-    INTEGER, ALLOCATABLE :: tempSpeciesIndex(:)
+    INTEGER :: nInputFields, nTempFields, nFinalFields, tempIndex, i, j
+    CHARACTER(LEN=255), ALLOCATABLE :: inputFieldsNames(:)
+    INTEGER, ALLOCATABLE :: tempFieldsIndex(:)
 
-    CALL Get_YAML_Scalars_Size(Node, nInputSpecies, RC)
+    CALL Get_YAML_Scalars_Size(Node, nInputFields, RC)
     IF (RC /= 0) THEN
       RETURN
     END IF
 
-    ALLOCATE(inputSpeciesNames(nInputSpecies))
-    CALL Get_YAML_Char_Scalars(Node, inputSpeciesNames, RC)
+    ALLOCATE(inputFieldsNames(nInputFields))
+    CALL Get_YAML_Char_Scalars(Node, inputFieldsNames, RC)
     IF (RC /= 0) THEN
       RETURN
     END IF
 
-    nTempSpecies = 0
-    DO i = 1, nInputSpecies
-      IF (TRIM(inputSpeciesNames(i)) == "?ALL?") THEN
-        nTempSpecies = nTempSpecies + State_Chm%nSpecies
-      ELSE IF (TRIM(inputSpeciesNames(i)) == "?ADV?") THEN
-        nTempSpecies = nTempSpecies + State_Chm%nAdvect
+    nTempFields = 0
+    DO i = 1, nInputFields
+      IF (inputFieldsNames(i)(1:14) /= "SpeciesConcVV_") THEN
+        CALL Error_Stop( "Invalid field name: must start with SpeciesConcVV_", "" )
+        RETURN
+      END IF
+
+      IF (TRIM(inputFieldsNames(i)) == "SpeciesConcVV_?ALL?") THEN
+        nTempFields = nTempFields + State_Chm%nSpecies
+      ELSE IF (TRIM(inputFieldsNames(i)) == "SpeciesConcVV_?ADV?") THEN
+        nTempFields = nTempFields + State_Chm%nAdvect
       ELSE
-        nTempSpecies = nTempSpecies + 1
+        nTempFields = nTempFields + 1
       END IF
     END DO
 
-    ALLOCATE(tempSpeciesIndex(nTempSpecies))
+    ALLOCATE(tempFieldsIndex(nTempFields))
     tempIndex = 1
-    DO i = 1, nInputSpecies
-      IF (TRIM(inputSpeciesNames(i)) == "?ALL?") THEN
+    DO i = 1, nInputFields
+      IF (TRIM(inputFieldsNames(i)) == "SpeciesConcVV_?ALL?") THEN
         DO j = 1, State_Chm%nSpecies
-          tempSpeciesIndex(tempIndex) = j
+          tempFieldsIndex(tempIndex) = j
           tempIndex = tempIndex + 1
         END DO
-      ELSE IF (TRIM(inputSpeciesNames(i)) == "?ADV?") THEN
+      ELSE IF (TRIM(inputFieldsNames(i)) == "SpeciesConcVV_?ADV?") THEN
         DO j = 1, State_Chm%nAdvect
-          ! NOTE: The advected species all come before non-advected species
-          tempSpeciesIndex(tempIndex) = j
+          ! NOTE: The advected Fields all come before non-advected Fields
+          tempFieldsIndex(tempIndex) = j
           tempIndex = tempIndex + 1
         END DO
       ELSE
-        ! Search for the species in the State_Chm%SpcData array
-        tempSpeciesIndex(tempIndex) = 0
+        ! Search for the fields in the State_Chm%SpcData array
+        tempFieldsIndex(tempIndex) = 0
         DO j = 1, State_Chm%nSpecies
-          IF (TRIM(State_Chm%SpcData(j)%Info%Name) == TRIM(inputSpeciesNames(i))) THEN
-            tempSpeciesIndex(tempIndex) = j
+          IF (TRIM(State_Chm%SpcData(j)%Info%Name) == TRIM(inputFieldsNames(i)(15:))) THEN
+            tempFieldsIndex(tempIndex) = j
             EXIT
           END IF
         END DO
-        IF (tempSpeciesIndex(tempIndex) == 0) THEN
+        IF (tempFieldsIndex(tempIndex) == 0) THEN
           RC = 1
           RETURN
         END IF
@@ -278,37 +284,39 @@ MODULE ObsOperator_Input_Alt_Mod
       END IF
     END DO
 
-    ! Find duplicated species, which can happen either because the user did it
+    ! Find duplicated fields, which can happen either because the user did it
     ! or because they used ?ALL? or ?ADV? alongside others. This method is
     ! inefficient but is fast enough for small arrays
-    nFinalSpecies = 0
-    DO i = 1, nTempSpecies
-      IF (tempSpeciesIndex(i) > 0) THEN
-        nFinalSpecies = nFinalSpecies + 1
-        DO j = i + 1, nTempSpecies
-          ! Zero out duplicate species
-          IF (tempSpeciesIndex(j) == tempSpeciesIndex(i)) THEN
-            tempSpeciesIndex(j) = 0
+    nFinalFields = 0
+    DO i = 1, nTempFields
+      IF (tempFieldsIndex(i) > 0) THEN
+        nFinalFields = nFinalFields + 1
+        DO j = i + 1, nTempFields
+          ! Zero out duplicate fields
+          IF (tempFieldsIndex(j) == tempFieldsIndex(i)) THEN
+            tempFieldsIndex(j) = 0
           END IF
         END DO
       END IF
     END DO
 
-    ALLOCATE(Entry%SpeciesIndex(nFinalSpecies))
-    ALLOCATE(Entry%SpeciesValue(nFinalSpecies))
+    ALLOCATE(Entry%FieldName(nFinalFields))
+    ALLOCATE(Entry%FieldSpeciesIndex(nFinalFields))
+    ALLOCATE(Entry%FieldValue(nFinalFields))
     tempIndex = 1
-    DO i = 1, nTempSpecies
-      IF (tempSpeciesIndex(i) == 0) THEN
+    DO i = 1, nTempFields
+      IF (tempFieldsIndex(i) == 0) THEN
         CYCLE
       END IF
-      Entry%SpeciesIndex(tempIndex) = tempSpeciesIndex(i)
-      Entry%SpeciesValue(tempIndex) = 0.0_f8
+      Entry%FieldName(tempIndex) = 'SpeciesConcVV_' // TRIM(State_Chm%SpcData(tempFieldsIndex(i))%Info%Name)
+      Entry%FieldSpeciesIndex(tempIndex) = tempFieldsIndex(i)
+      Entry%FieldValue(tempIndex) = 0.0_f8
       tempIndex = tempIndex + 1
     END DO
 
-    DEALLOCATE(inputSpeciesNames)
-    DEALLOCATE(tempSpeciesIndex)
-  END SUBROUTINE Fill_Species
+    DEALLOCATE(inputFieldsNames)
+    DEALLOCATE(tempFieldsIndex)
+  END SUBROUTINE Fill_Fields
 
   SUBROUTINE Fill_Time_Operator(Entry, Node, Input_Opt, RC)
     USE ErrCode_Mod

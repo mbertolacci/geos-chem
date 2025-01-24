@@ -6,6 +6,9 @@ MODULE ObsOperator_Entry_Mod
 
   PUBLIC :: Deactivate_ObsOperatorEntry
 
+  INTEGER, PUBLIC, PARAMETER :: MAX_ENTRY_ID_LENGTH = 255
+  INTEGER, PUBLIC, PARAMETER :: MAX_ENTRY_FIELD_NAME_LENGTH = 64
+
   INTEGER, PUBLIC, PARAMETER :: VERTICAL_UNIT_PRESSURE = 1
   INTEGER, PUBLIC, PARAMETER :: VERTICAL_UNIT_ALTITUDE = 2
   INTEGER, PUBLIC, PARAMETER :: VERTICAL_UNIT_PRESSURE_LEVEL = 3
@@ -23,8 +26,9 @@ MODULE ObsOperator_Entry_Mod
 
     CHARACTER(LEN=:), ALLOCATABLE :: Id
 
-    INTEGER, ALLOCATABLE :: SpeciesIndex(:)
-    REAL(f8), ALLOCATABLE :: SpeciesValue(:)
+    CHARACTER(LEN=MAX_ENTRY_FIELD_NAME_LENGTH), ALLOCATABLE :: FieldName(:)
+    INTEGER, ALLOCATABLE :: FieldSpeciesIndex(:)
+    REAL(f8), ALLOCATABLE :: FieldValue(:)
 
     INTEGER, ALLOCATABLE :: TimeIndices(:)
     REAL(f8), ALLOCATABLE :: TimeWeights(:)
@@ -55,11 +59,14 @@ MODULE ObsOperator_Entry_Mod
     IF (ALLOCATED(ThisEntry%Id)) THEN
       DEALLOCATE(ThisEntry%Id)
     END IF
-    IF (ALLOCATED(ThisEntry%SpeciesIndex)) THEN
-      DEALLOCATE(ThisEntry%SpeciesIndex)
+    IF (ALLOCATED(ThisEntry%FieldName)) THEN
+      DEALLOCATE(ThisEntry%FieldName)
     END IF
-    IF (ALLOCATED(ThisEntry%SpeciesValue)) THEN
-      DEALLOCATE(ThisEntry%SpeciesValue)
+    IF (ALLOCATED(ThisEntry%FieldSpeciesIndex)) THEN
+      DEALLOCATE(ThisEntry%FieldSpeciesIndex)
+    END IF
+    IF (ALLOCATED(ThisEntry%FieldValue)) THEN
+      DEALLOCATE(ThisEntry%FieldValue)
     END IF
     IF (ALLOCATED(ThisEntry%TimeIndices)) THEN
       DEALLOCATE(ThisEntry%TimeIndices)

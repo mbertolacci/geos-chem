@@ -1,6 +1,7 @@
 MODULE ObsOperator_Mod
   USE PRECISION_MOD
   USE ObsOperator_Entry_Mod
+  USE ObsOperator_Output_Mod
 
   IMPLICIT NONE
   PRIVATE
@@ -15,13 +16,12 @@ MODULE ObsOperator_Mod
   CHARACTER(LEN=255) :: PreviousInputPath
   CHARACTER(LEN=255) :: PreviousOutputPath
 
-  INTEGER :: CurrentOutputFile
+  TYPE(ObsOperatorOutputFile) :: CurrentOutputFile
 CONTAINS
 
   SUBROUTINE ObsOperator_Init(Input_Opt, State_Chm, State_Grid, RC)
     USE ErrCode_Mod
-    USE File_Mod, ONLY : IOERROR, FILE_EXISTS
-    USE inquireMod, ONLY : findFreeLUN
+    USE File_Mod, ONLY : FILE_EXISTS
     USE Input_Opt_Mod, ONLY : OptInput
     USE State_Chm_Mod, ONLY : ChmState
     USE State_Grid_Mod, ONLY : GrdState
@@ -76,19 +76,13 @@ CONTAINS
     END DO
 
     IF ( currentOutputPath /= PreviousOutputPath .AND. nActiveEntries > 0 ) THEN
-      INQUIRE( CurrentOutputFile, opened=isOpen )
-      IF ( isOpen ) CLOSE( CurrentOutputFile )
-
-      CurrentOutputFile = findFreeLUN()
-      OPEN( CurrentOutputFile, FILE=TRIM( currentOutputPath ), STATUS='UNKNOWN', IOSTAT=ioStat )
-      IF ( ioStat /= 0 ) THEN
-        CALL IOERROR( ioStat, CurrentOutputFile, 'ObsOperator_Init:1' )
+      IF (CurrentOutputFile%FileId >= 0) THEN
+        CALL Close_ObsOperator_Output(CurrentOutputFile)
       END IF
 
-      WRITE(CurrentOutputFile, '(A, ",", A, ",", A)', IOSTAT=ioStat) &
-        'id', 'species', 'value'
-      IF ( ioStat /= 0 ) THEN
-        CALL IOERROR( ioStat, CurrentOutputFile, 'ObsOperator_Init:2' )
+      CALL Create_ObsOperator_Output(currentOutputPath, CurrentOutputFile, RC)
+      IF (RC /= GC_SUCCESS) THEN
+        RETURN
       END IF
     END IF
     PreviousOutputPath = currentOutputPath
@@ -125,6 +119,10 @@ CONTAINS
 
     IF (ALLOCATED(OperatorEntries)) THEN
       DEALLOCATE(OperatorEntries)
+    END IF
+
+    IF (CurrentOutputFile%FileId >= 0) THEN
+      CALL Close_ObsOperator_Output(CurrentOutputFile)
     END IF
   END SUBROUTINE ObsOperator_Cleanup
 
@@ -179,32 +177,19 @@ CONTAINS
       END IF
     END DO
 
-    CALL FLUSH( CurrentOutputFile )
-
     IF (isPrintLog) THEN
       WRITE(*, '(A, I0)') '--------------------------------'
     ENDIF
   END SUBROUTINE ObsOperator_Sample
 
   SUBROUTINE ObsOperator_Finalize_Entry(Entry, State_Chm)
+    USE ErrCode_Mod
     USE State_Chm_Mod, ONLY : ChmState
-    USE File_Mod, ONLY : IOERROR
-
+    USE Error_Mod, ONLY : Error_Stop
     TYPE(ObsOperatorEntry), INTENT(INOUT) :: Entry
     TYPE(ChmState), INTENT(IN) :: State_Chm
 
-    INTEGER :: ioStat, J
-
-    DO J = 1, SIZE(Entry%SpeciesValue)
-      WRITE(CurrentOutputFile, '(A, ",", A, ",", G0)', IOSTAT=ioStat) &
-        TRIM(Entry%Id), &
-        TRIM(State_Chm%SpcData(Entry%SpeciesIndex(J))%Info%Name), &
-        Entry%SpeciesValue(J)
-      IF ( ioStat /= 0 ) THEN
-        CALL IOERROR( ioStat, CurrentOutputFile, 'ObsOperator_Sample:1')
-      ENDIF    
-    END DO
-
+    CALL Write_ObsOperator_Entry(CurrentOutputFile, Entry)
     CALL Deactivate_ObsOperatorEntry(Entry)
   END SUBROUTINE ObsOperator_Finalize_Entry
 END MODULE ObsOperator_Mod
