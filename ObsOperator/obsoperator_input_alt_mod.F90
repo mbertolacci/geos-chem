@@ -373,19 +373,19 @@ MODULE ObsOperator_Input_Alt_Mod
     END SELECT
 
     CALL Get_YAML_Char_Scalar_At_Key(Node, "weights", vStr, "normalized", RC=RC)
-    IF (RC /= 0) THEN
-      RETURN
-    END IF
     normalizeWeights = .TRUE.
-    SELECT CASE (TRIM(vStr))
-    CASE ("equal")
-      normalizeWeights = .FALSE.
-    CASE ("normalized")
-      normalizeWeights = .TRUE.
-    CASE DEFAULT
-      CALL Error_Stop( "Invalid time operator weighting type", "" )
-      RETURN
-    END SELECT
+    IF (RC == 0) THEN
+      SELECT CASE (TRIM(vStr))
+      CASE ("equal")
+        normalizeWeights = .FALSE.
+      CASE ("normalized")
+        normalizeWeights = .TRUE.
+      CASE DEFAULT
+        CALL Error_Stop( "Invalid time operator weighting type", "" )
+        RETURN
+      END SELECT
+    END IF
+    RC = 0
 
     IF (timeOperatorType == TIME_OPERATOR_RANGE) THEN
       CALL Read_Time_Entry(Node, "start", isUnitTimeIndex, Input_Opt, timeIndex1, RC)
