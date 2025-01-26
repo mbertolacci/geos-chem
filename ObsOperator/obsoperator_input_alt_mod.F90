@@ -53,6 +53,8 @@ MODULE ObsOperator_Input_Alt_Mod
       RETURN
     END IF
 
+    CLOSE(inputFile)
+
     CALL Free_YAML_Document(Document)
   END SUBROUTINE Read_ObsOperator_Input
 
