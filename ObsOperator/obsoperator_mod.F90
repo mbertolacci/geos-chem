@@ -66,8 +66,6 @@ CONTAINS
       END IF
     END IF
 
-    ! This should not happen, but if it does it is probably because the initial read
-    ! of the YAML file identified entries that aren't real
     nActiveEntries = 0
     DO I = 1, MAX_OPERATOR_ENTRIES
       IF (OperatorEntries(I)%IsActive) THEN
@@ -77,13 +75,10 @@ CONTAINS
 
     IF ( currentOutputPath /= PreviousOutputPath .AND. nActiveEntries > 0 ) THEN
       IF (CurrentOutputFile%FileId >= 0) THEN
-        CALL Close_ObsOperator_Output(CurrentOutputFile)
+        CALL Finalize_ObsOperator_Output(CurrentOutputFile)
       END IF
-
-      CALL Create_ObsOperator_Output(currentOutputPath, CurrentOutputFile, RC)
-      IF (RC /= GC_SUCCESS) THEN
-        RETURN
-      END IF
+      ! File will be created on write sample, if any occur
+      CurrentOutputFile%Path = currentOutputPath
     END IF
     PreviousOutputPath = currentOutputPath
 
@@ -122,7 +117,7 @@ CONTAINS
     END IF
 
     IF (CurrentOutputFile%FileId >= 0) THEN
-      CALL Close_ObsOperator_Output(CurrentOutputFile)
+      CALL Finalize_ObsOperator_Output(CurrentOutputFile)
     END IF
   END SUBROUTINE ObsOperator_Cleanup
 
