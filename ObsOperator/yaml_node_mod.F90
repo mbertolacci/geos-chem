@@ -67,6 +67,7 @@ MODULE YAML_Node_Mod
       NewEntry%Key = Key
     END IF
     NewEntry%Node => NewNode
+    NULLIFY(NewEntry%Next)
     
     IF (ASSOCIATED(Node%LastEntry)) THEN
       Node%LastEntry%Next => NewEntry
