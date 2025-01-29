@@ -85,6 +85,7 @@ PROGRAM GEOS_Chem
   USE PLANEFLIGHT_MOD       ! For planeflight track diag
   USE HISTORY_MOD           ! Updated netCDF diagnostics
   USE OBSPACK_MOD           ! For ObsPack diagnostics
+  USE ObsOperator_Mod       ! For ObsOperator diagnostics
   USE GOSAT_CH4_MOD         ! For GOSAT observation operator
   USE AIRS_CH4_MOD          ! For AIRS observation operator
   USE TCCON_CH4_MOD         ! For TCCON observation operator
@@ -965,6 +966,22 @@ PROGRAM GEOS_Chem
           ENDIF
        ENDIF
 
+       IF ( ( ELAPSED_TODAY == 0 ) .and. notDryRun .and. Input_Opt%Do_ObsOperator ) THEN
+          IF ( Input_Opt%useTimers ) THEN
+             CALL Timer_Start( "Diagnostics", RC )
+          ENDIF
+
+          CALL ObsOperator_Init(Input_Opt, State_Chm, State_Grid, RC)
+          IF ( RC /= GC_SUCCESS ) THEN
+             ErrMsg = 'Error encountered in "ObsOperator_Init"!'
+             CALL Error_Stop( ErrMsg, ThisLoc )
+          ENDIF
+
+          IF ( Input_Opt%useTimers ) THEN
+             CALL Timer_End( "Diagnostics", RC )
+          ENDIF
+       ENDIF
+
        !=====================================================================
        !          ***** T E S T   F O R   E N D   O F   R U N *****
        !=====================================================================
@@ -1753,6 +1770,18 @@ PROGRAM GEOS_Chem
 
           ENDIF
 
+          IF ( Input_Opt%Do_ObsOperator ) THEN
+            IF ( Input_Opt%useTimers ) THEN
+               CALL Timer_Start( "Diagnostics", RC )
+            ENDIF
+
+            CALL ObsOperator_Sample(Input_Opt, State_Chm, State_Grid, State_Met, RC)
+
+            IF ( Input_Opt%useTimers ) THEN
+               CALL Timer_End( "Diagnostics", RC )
+            ENDIF
+          ENDIF
+
           !------------------------------------------------------------------
           !    ***** P L A N E F L I G H T   D I A G   S E T U P  *****
           !------------------------------------------------------------------
@@ -1958,6 +1987,19 @@ PROGRAM GEOS_Chem
           ErrMsg = 'Error encountered in "ObsPack_SpeciesMap_Cleanup"!'
           CALL Error_Stop( ErrMsg, ThisLoc )
        ENDIF
+
+       IF ( Input_Opt%useTimers ) THEN
+          CALL Timer_End( "Diagnostics", RC )
+       ENDIF
+    ENDIF
+
+    IF ( Input_Opt%Do_ObsOperator ) THEN
+
+       IF ( Input_Opt%useTimers ) THEN
+          CALL Timer_Start( "Diagnostics", RC )
+       ENDIF
+
+       CALL ObsOperator_Cleanup(State_Chm)
 
        IF ( Input_Opt%useTimers ) THEN
           CALL Timer_End( "Diagnostics", RC )
