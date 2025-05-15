@@ -107,6 +107,10 @@ MODULE ObsOperator_Output_Mod
 
     CALL NcCl( OutputFile%FileId )
     OutputFile%FileId = -1
+
+    OutputFile%CurrentIdIndex = 1
+    OutputFile%CurrentSampleIndex = 1
+    OutputFile%IncludedFieldsIndex = 0
   END SUBROUTINE Finalize_ObsOperator_Output
 
   SUBROUTINE Create_ObsOperator_Output(OutputFile)
